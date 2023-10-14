@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
   </head>
+  <style>
+    body {
+      overflow: hidden;
+      margin: 0px;
+    }
+  </style>
+
   <script type="importmap">
     {
       "imports": {
@@ -16,8 +23,120 @@
   <body>
     <script type="module">
       import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      //引入性能监视器stats.js
+      import Stats from "three/addons/libs/stats.module.js";
+      // 引入dat.gui.js的一个类GUI
+      import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 
-      console.log(THREE);
+      const gui = new GUI();
+      //改变交互界面style属性
+      gui.domElement.style.right = "0px";
+      gui.domElement.style.width = "300px";
+
+      const stats = new Stats();
+      //stats.domElement:web页面上输出计算结果,一个div元素，
+      document.body.appendChild(stats.domElement);
+
+      let isRotate = true;
+
+      let scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(30, 1440 / 960, 1, 1000);
+      camera.position.set(500, 200, 500); // 摄像机距离物体距离超过远截面就会看不到物体
+      const geometry = new THREE.BoxGeometry(100, 100, 100);
+      const material = new THREE.MeshLambertMaterial(); // 漫反射材质对光线反射和入射角有关
+      const mesh = new THREE.Mesh(geometry, material); //网格模型对象Mesh
+      mesh.position.set(0, 0, 0);
+      const meshFolder = gui.addFolder("模型"); // 分组
+      meshFolder
+        .add({ scale: 1 }, "scale", 0.1, 1)
+        .name("模型缩放")
+        .onChange((v) => {
+          mesh.scale.set(v, v, v);
+        });
+      gui.add(camera.position, "x", 0, 1000).name("摄像机X位置");
+      camera.lookAt(mesh.position);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+      });
+      renderer.setSize(1440, 960); //设置three.js渲染区域的尺寸(像素px)
+      renderer.setPixelRatio(window.devicePixelRatio); //为了适应不同屏幕
+      renderer.setClearColor(0x1242444, 1);
+      gui
+        .addColor(
+          {
+            color: "0x1242444",
+          },
+          "color"
+        )
+        .name("渲染背景颜色")
+        .onChange((v) => renderer.setClearColor(v, 1));
+      const axesHelper = new THREE.AxesHelper(150);
+      scene.add(axesHelper);
+      scene.add(mesh);
+
+      const pointLight = new THREE.PointLight(0xffffff, 1, 1000, 0.3); // 颜色，光照强度，距离，设置0时无限远，衰减量
+      pointLight.position.set(600, 200, 300); //点光源放在x轴上
+      // scene.add(pointLight);
+
+      //环境光:没有特定方向，整体改变场景的光照明暗
+      const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+      // scene.add(ambient);
+
+      // 平行光
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // 范围无限远 类似太阳光
+      directionalLight.position.set(100, 100, 100);
+      directionalLight.target = mesh;
+      scene.add(directionalLight);
+      gui
+        .add(directionalLight, "intensity", 0, 2.0)
+        .name("平行光强度")
+        .step(0.1);
+      const dirLightHelper = new THREE.DirectionalLightHelper(
+        directionalLight,
+        5,
+        0xff0000
+      );
+      scene.add(dirLightHelper);
+
+      // 设置相机控件轨道控制器OrbitControls
+      const controls = new OrbitControls(camera, renderer.domElement);
+      // 如果OrbitControls改变了相机参数，重新调用渲染器渲染三维场景
+      controls.addEventListener("change", function () {
+        console.log("camera.position", camera.position);
+      }); //监听鼠标、键盘事件
+
+      document.body.appendChild(renderer.domElement);
+
+      meshFolder
+        .add({ bool: true }, "bool")
+        .name("是否旋转")
+        .onChange((v) => {
+          isRotate = v;
+        });
+
+      // 必须设置animate开启循环渲染 否则看不到渲染的东西
+      function animate() {
+        stats.update();
+        if (isRotate) {
+          mesh.rotateY(0.01); //每次绕y轴旋转0.01弧度
+        }
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+      animate();
+
+      window.onresize = function () {
+        // 重置渲染器输出画布canvas尺寸
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        // 全屏情况下：设置观察范围长宽比aspect为窗口宽高比
+        camera.aspect = window.innerWidth / window.innerHeight;
+        // 渲染器执行render方法的时候会读取相机对象的投影矩阵属性projectionMatrix
+        // 但是不会每渲染一帧，就通过相机的属性计算投影矩阵(节约计算资源)
+        // 如果相机的一些属性发生了变化，需要执行updateProjectionMatrix ()方法更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+      };
     </script>
   </body>
 </html>
